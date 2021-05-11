@@ -1,0 +1,65 @@
+import { Injectable } from '@angular/core';
+import { HttpClient, HttpParams, HttpHeaders} from '@angular/common/http';
+import {Observable, throwError} from 'rxjs';
+import { RegisterUserRequest } from 'app/shared/model/register-user-request.model';
+import { Policy } from 'app/shared/model/policy';
+import { AppConstant } from 'config/app-constants';
+import { ExtendedHttpHeaders } from 'app/shared/services/http/http.interceptor';
+@Injectable()
+export class VerifyService {
+  _registerUserRequest: RegisterUserRequest;
+  _initialRelationships: any;
+  adminEnrolledPolicies: Policy[] = [];
+  constructor(private http: HttpClient) { }
+
+  public saveRegistration(): Observable<any> {
+    if (this._registerUserRequest) {
+      const saveRegistrationURL = AppConstant.API_HOST + 'user/relationship';
+      let params = new HttpParams();
+      params = params.set('version', AppConstant.API_VERSION);
+      params = params.set('client_id', AppConstant.API_CLIENT_ID);
+      const targetEnv = AppConstant.TARGET_ENV_OBSC;
+      if (targetEnv !== '') {
+        params = params.set('target_env', targetEnv);
+      }
+      const sessionEnv = AppConstant.SESSION_ENV;
+      if (sessionEnv !== '') {
+        params = params.set('session_env', sessionEnv);
+      }
+      const headerOptions = {
+        'Content-Type': 'application/json'
+      };
+      // use ExtendedHttpHeaders to bypass default HttpInterceptor error handling to allow retry request
+      const headers = new ExtendedHttpHeaders(headerOptions);
+      headers.errorHandler = this.errorHandler;
+      const httpOptions = {
+        headers: headers,
+        params: params
+      };
+      return this.http.post(saveRegistrationURL, this._registerUserRequest, httpOptions);
+    }
+  }
+
+  // custom error handler for bubbling up error returned from service
+  public errorHandler(request) {
+    return throwError(request);
+  }
+  set registerUserRequest(req: RegisterUserRequest) {
+    if (req) {
+      this._registerUserRequest = req;
+    }
+  }
+  get registerUserRequest(): RegisterUserRequest {
+    return this._registerUserRequest;
+  }
+
+  set initialRelationships(relations) {
+    if (relations) {
+      this._initialRelationships = relations;
+    }
+  }
+
+  get initialRelationships(): any {
+    return this._initialRelationships;
+  }
+}

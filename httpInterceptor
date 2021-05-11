@@ -1,0 +1,204 @@
+import { Injectable } from '@angular/core';
+import {
+  HttpErrorResponse,
+  HttpEvent,
+  HttpHandler,
+  HttpHeaders,
+  HttpInterceptor,
+  HttpParams,
+  HttpRequest,
+  HttpResponse
+} from '@angular/common/http';
+import { Observable, throwError } from 'rxjs';
+import { tap } from 'rxjs/operators';
+import { Router } from '@angular/router';
+import { ErrorService } from 'app/shared/services/error.service';
+import { ErrorMessage } from 'app/shared/model/error-message';
+import { environment } from 'environments/environment';
+import { LoggerService } from '../logger/logger.service';
+import { PageStateService } from '../../page-state/page-state.service';
+import { AppConstant } from '../../../../config/app-constants';
+
+export class ExtendedHttpHeaders extends HttpHeaders {
+  errorHandler?: Function;
+}
+
+@Injectable()
+export class HttpServiceInterceptor implements HttpInterceptor {
+  private errorSkipURLS = [
+    '/audits',
+    '/pasc2',
+    'caas/pagedata',
+    'api.thehartford.com/authorize',
+    '/profile',
+    '/register/validate',
+    '/register/user',
+    '/user/relationship',
+    '/user/route',
+    '/user/logout',
+    '/user/clear/pascsession'
+  ];
+
+  private corsSkipURLS = [
+    'api.thehartford.com'
+  ];
+  // IE/Edge cache GET requests however the below APIs return empty response when additional cache bust param is added
+  private cacheBustSkipURLS = [
+    'api.thehartford.com/cl/documents/'
+  ];
+  constructor(public router: Router,
+              public errorService: ErrorService,
+              public pageStateService: PageStateService,
+              public logger: LoggerService) {
+  }
+
+
+  // add custom headers to request
+  public prepareHeader(url: string): any {
+    let bypass = false;
+    // Prevent Ajax Request Caching for Internet Explorer but doesn't work for datapower
+    for (let index = this.corsSkipURLS.length - 1; index >= 0; index -= 1) {
+      if (url.indexOf(this.corsSkipURLS[index]) >= 0) {
+        bypass = true;
+        break;
+      }
+    }
+    if (bypass) {
+      return {};
+    }
+    const headers = {};
+    headers['Cache-control'] = 'no-cache';
+    headers['Expires'] = '0';
+    headers['Pragma'] = 'no-cache';
+    return headers;
+  }
+
+  public skipErrorCatch(url: string) {
+    for (let index = this.errorSkipURLS.length - 1; index >= 0; index -= 1) {
+      if (url.indexOf(this.errorSkipURLS[index]) >= 0) {
+        if (url.indexOf('api.thehartford.com/authorize') &&
+          sessionStorage.getItem('employeeLoginClicked') && !sessionStorage.getItem('hartfordEmployeeLogin')) {
+            return false;
+        }
+        return true;
+      }
+    }
+    return false;
+  }
+
+  public skipCacheBust(url: string) {
+    let skip = false;
+    for (let index = this.cacheBustSkipURLS.length - 1; index >= 0; index -= 1) {
+      if (url.indexOf(this.cacheBustSkipURLS[index]) >= 0) {
+        skip = true;
+        break;
+      }
+    }
+
+    return skip;
+  }
+  intercept(request: HttpRequest<any>, next: HttpHandler): Observable<HttpEvent<any>> {
+    let customReq = request;
+    // only add cache control headers if not already set
+    if (!request.headers.hasOwnProperty('Cache-control') &&
+      !(request.url.indexOf('api.thehartford.com') >= 0)) {  // skip DP requests
+      customReq = request.clone({
+        setHeaders: this.prepareHeader(request.url)
+      });
+    } else {
+      // explicitly add cache bust to querystring with GET request
+      if (!this.skipCacheBust(request.url) && request.method.toUpperCase() === 'GET') {
+        let newParams = new HttpParams({fromString: request.params.toString()})
+          .set('noCache', new Date().getTime().toString());
+        const targetEnv = AppConstant.TARGET_ENV_OBSC;
+        if (targetEnv !== '') {
+          newParams = newParams.set('target_env', targetEnv);
+        }
+        const sessionEnv = AppConstant.SESSION_ENV;
+        if (sessionEnv !== '') {
+          newParams = newParams.set('session_env', sessionEnv);
+        }
+        customReq = request.clone({
+          'params': newParams
+        });
+      }
+      let hartfordEmployeeLoginEmail = '';
+      this.pageStateService.getHartfordEmployeeLogin().subscribe((emailId) => {
+        hartfordEmployeeLoginEmail = emailId;
+      });
+      // If Employee Impersonation flow, then append AuthorizationSource to header
+      // Do not append AuthorizationSource header to PC EDGE API's
+      if (hartfordEmployeeLoginEmail && (request.url.indexOf('/cl/endorsements') === -1)
+          && (request.url.indexOf('/cl/documents') === -1)) {
+        const headers = request.headers
+          .set('AuthorizationSource', hartfordEmployeeLoginEmail);
+        customReq = request.clone({ headers });
+      }
+    }
+    return <any> next
+      .handle(customReq)
+      .pipe(
+        tap((response: HttpEvent<any>) => {
+          if (response instanceof HttpResponse) {
+            // If request fails, throw an Error that will be caught
+            const status = this.getErrorStatusCode(response);
+            if (status < 200 || status >= 300) {
+              throw response;
+            } else {
+              return response;
+            }
+          }
+        }, (response: HttpErrorResponse) => {
+          // IF audit API or CAAS skip standard Error page
+          if (request.url && this.skipErrorCatch(request.url)) {
+            throw response;
+          }
+
+          if (response instanceof HttpErrorResponse) {
+            // log error if we have details
+            this.logger.error('Processing http error', response);
+          }
+          // Add a pre error handler
+          if (request.headers.hasOwnProperty('errorHandler')
+            && typeof request.headers['errorHandler'] === 'function') {
+            return request.headers['errorHandler'](response);
+          }
+          //Catch all
+          return this.catchErrors(response);
+        }
+      ));
+  }
+
+  getErrorStatusCode(res: any): number {
+    if (res) {
+      if (res.hasOwnProperty('status')) {
+        return res.status;
+      } else if (res.error && res.error.hasOwnProperty('status')) {
+        return res.error.status;
+      }
+    }
+    return;
+  }
+
+  public catchErrors(res: any) {
+    // catch non-200 service responses
+    const errorStatus = this.getErrorStatusCode(res);
+    if (errorStatus < 200 || errorStatus >= 300) {
+      // US_2754 redirect non-200 responses to Error page
+      const errorMsg = new ErrorMessage();
+      errorMsg.pageTitle = environment.systemDownPageTitle;
+      errorMsg.pageMessage = environment.systemDownPageMessage;
+      errorMsg.tryAgainMsg = environment.tryAgainMsg;
+      errorMsg.returnMsg = environment.returnMsg;
+      if (this.errorService) {
+        this.errorService.setError(errorMsg);
+      }
+      if (res.url.indexOf('api.thehartford.com/authorize') && sessionStorage.getItem('employeeLoginClicked') && !sessionStorage.getItem('hartfordEmployeeLogin')) {
+        this.router.navigate(['./employee-login/error'])
+      } else {
+        this.router.navigate(['./error']);
+      }
+    }
+    return throwError(res);
+  }
+}

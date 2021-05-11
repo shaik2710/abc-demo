@@ -1,0 +1,58 @@
+Skip to content
+ Enterprise
+Search or jump to…
+
+Pull requests
+ 
+import { WcRequestor } from '../app/shared/model/common-interfaces.model';
+import { BillAccountSummaryData } from '../app/billplan/model/billplan-model';
+
+export interface AppConfig {
+    apiClientId: string;
+    apiAuthorize: string;
+    apiRoot: string;
+    apiRootEdge: string;
+    apiVersion: string;
+    targetEnv: string;
+    sessionEnv: string;
+    targetEnvEdge: string;
+    targetEnvObsc?: string;
+    targetEnvEbc?: string;
+    scopes: string[];
+    appName: string;
+    // ebc route to old flow
+    swiftFlowUrl?: string;
+    // error page URL
+    errorPageUrl: string;
+    // page to redirect to on cancel
+    cancelRedirectUrl: string;
+    // return to policies page url
+    returnToPoliciesUrl: string;
+    // url for update mailing address
+    updateMailingAddressUrl?: string;
+    // url to add additional interest
+    addAiUrl?: string;
+    endorsementTrackerUrl?: string;
+    // tracking hsitory url
+    trackingHistoryUrl?: string;
+    addressConfig: any;
+    requestor: WcRequestor;
+    resumeChanges?: boolean;
+    isEmployee?: boolean;
+    rootPath: string;
+    policyChangeType: string;
+    billingMethod: string;
+    billAccountDetails?: BillAccountSummaryData;
+    featuresFlag?: any;
+    expressPayUrl?: string;
+}
+
+// service used to access provided appConfig data
+export class AppConfigService {
+    constructor(private config: AppConfig) {
+    }
+    getConfig() {
+        return this.config;
+    }
+}
+
