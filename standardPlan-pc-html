@@ -1,0 +1,133 @@
+<!-- To display header -->
+<app-header></app-header>
+
+<!-- To display side bar -->
+<app-side-bar [dataTableHeader]="dataTableHeader" [demoGBTable]="demoGBTable" *ngIf="showMore"></app-side-bar>
+
+<!-- Table -->
+
+<div class="{{showMore ? 'standardArea' : 'standardAreaHidden'}}">
+  <div class="row card">
+    <!-- <span ><i class="icon icon-caret-right"></i></span> -->
+    <h3 class="underlined">
+      <span class="material-icons allignIcon" (click)="toggle()" *ngIf="!showMore">arrow_forward_ios</span>
+      <span (click)="toggle()" *ngIf="showMore" class="material-icons allignIcon">arrow_back_ios</span>
+      {{title}}
+    </h3>
+
+    <app-modal #paymentExistConfirm title=" {{title}}">
+      <ng-container class="app-modal-body">
+        <form [formGroup]="frmSubscribe">
+          <div class="form-group row">
+            <div class="col-sm-5">
+              <label class="label col-sm-5" for="complan">Comp Plan : </label>
+              <input formControlName="complan" class="input form-control-plaintext" type="text" placeholder="complan"
+                [disabled]="true">
+            </div>
+            <div class="col-sm-6">
+              <label class="label col-sm-6" for="cal_elty">Calculation Eligibility : </label>
+              <div class="col-sm-6">
+                <div class="select-container">
+                  <select id="cal_elty" formControlName="cal_elty" class="form-control">
+                    <option value="">Please Select</option>
+                    <option selected value="Eligible">Eligible</option>
+                    <option value="Ineligible">InEligible</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="form-group row">
+            <div class="col-sm-5">
+              <label class="label col-sm-5" for="mlob">MLOB : </label>
+              <input formControlName="mlob" class="input" type="text" placeholder="mlob">
+            </div>
+            <div class="col-sm-6">
+              <label class="label col-sm-6" for="cal_elty">payment Eligibility : </label>
+              <div class="col-sm-6">
+                <div class="select-container">
+                  <select id="pay_elty" formControlName="pay_elty" class="form-control">
+                    <option value="">Please Select</option>
+                    <option value="Eligible">Eligible</option>
+                    <option value="InEligible">InEligible</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="form-group row">
+            <div class="col-sm-12">
+              <label class="label col-sm-3" for="mlob_desc">MLOB Description : </label>
+              <textarea formControlName="mlob_desc" height="50px" class="input col-sm-12" type="text"
+                placeholder="MLOB Description"></textarea>
+            </div>
+          </div>
+          <footer class="modal-card-foot">
+            <div class="modal-footer">
+              <div class="row text-center">
+                <button class="btn btn-secondary btn" data-dismiss="modal">Cancel</button>
+                <button class="btn btn-primary btn" type="button">submit</button>
+              </div>
+            </div>
+          </footer>
+        </form>
+      </ng-container>
+    </app-modal>
+    <!-- <app-table-container [dataTableHeader]="dataTableHeader" [demoGBTable]="demoGBTable" [title]="title" [year]="2021"
+      [showMore]="showMore" (childEvent)="modalOpen($event)"></app-table-container> -->
+
+
+    <ng-template #compPlanTempRef let-complan="complan">
+      <strong>{{complan}}</strong>
+    </ng-template>
+    <ng-template #mlobRef let-mlob="mlob">
+      <span>{{mlob}}</span>
+    </ng-template>
+    <ng-template #mlobDescriptionTempRef let-mlob_desc="mlob_desc">
+      {{mlob_desc}}
+    </ng-template>
+    <ng-template #calculationTempRef let-cal_elty="cal_elty">
+      {{cal_elty}}
+    </ng-template>
+    <ng-template #paymentTempRef let-pay_elty="pay_elty">
+      {{pay_elty}}
+    </ng-template>
+    <ng-template #actionTempRef let-pay_elty="pay_elty" let-cal_elty="cal_elty" let-mlob_desc="mlob_desc"
+      let-mlob="mlob" let-complan="complan">
+      <span class="text-nowrap">
+        <a (click)="modalOpen({'pay_elty': pay_elty, 'cal_elty': cal_elty, 'mlob': mlob, 'complan': complan, 'mlob_desc': mlob_desc})"
+          class="seemore-spacing">
+          <button class="icon-edit"></button>
+        </a>
+      </span>
+    </ng-template>
+
+    <ng-template #advactionTempRef let-record="record">
+    <span class="text-nowrap">
+      <a (click)="modalOpen(record)"
+        class="seemore-spacing">
+        <button class="icon-edit"></button>
+      </a>
+    </span>
+  </ng-template>
+
+   
+
+    <lib-advanced-grid  [datasource]="demoGBTable"
+    [tableHeaders]="nonSortableTableHeaders"
+    [getDisplayTextForHeaderField]="getDisplayTextForHeaderField"
+    [getDisplayTextForRecordField]="getDisplayTextForRecordField"
+    [sortHeader]="pagingInfo.sortHeader"
+    [sortDir]="pagingInfo.sortDir"
+    [pagingInfo]="pagingInfo"
+    [customColumns]="{'': advactionTempRef}" 
+    [viewPortContainer]="fixedTableId"
+    [actionsInfo]="actionsInfo"
+    (pageOrSortChanged)="pageOrSortChanged($event)"
+    >
+    </lib-advanced-grid>
+
+    <!-- Templates for the Advanced Grid itself -->
+<ng-template #headerTemplate></ng-template>
+
+  </div>
